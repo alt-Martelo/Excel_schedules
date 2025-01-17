@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Excel to CSV Event Processor</title>
+  <!-- SheetJS Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+  <h1>Upload Excel File to Process Events</h1>
+
+  <!-- File Input -->
+  <input type="file" id="fileInput" accept=".xlsx, .xls"/>
+
+  <!-- Button to trigger file modification -->
+  <button onclick="processExcel()">Process Events</button>
+
+  <!-- Button to download modified file -->
+  <a id="downloadLink" style="display:none;">Download Processed File</a>
+
+  <script>
+    class Event {
+      constructor(eventHour, baseTitle, baseRoom, start, intervals, end) {
+        this.eventHour = eventHour;
+        this.baseTitle = baseTitle;
+        this.baseRoom = baseRoom;
+        this.start = start;
+        this.intervals = intervals;
+        this.end = end;
+      }
+    }
+
+    function addMinutesToTime(time, minutesToAdd) {
+      const [hours, minutes] = time.split(':').map(Number);
+      const date = new Date();
+      date.setHours(hours, minutes, 0);
+      date.setMinutes(date.getMinutes() + minutesToAdd);
+      return date.toTimeString().slice(0, 5); // Format back to HH:MM
+    }
+
+    function processExcel() {
+      const input = document.getElementById('fileInput');
+      const file = input.files[0];
+
+      if (!file) {
+        alert('Please upload an Excel file first.');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+
+        // Convert Excel to CSV format
+        const csvData = XLSX.utils.sheet_to_csv(worksheet);
+        const rows = csvData.split('\n').map(row => row.split(','));
+        const header = rows[0];
+        const events = [];
+
+        // Process rows
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (row.length > 1) { // Ensure row is not empty
+            const baseTitle = row[0];
+            const baseRoom = row[1];
+            const baseDuration = parseInt(row[2], 10) || 0; // Duration in minutes
+            const baseTrailer = parseInt(row[3], 10) || 0; // Trailer time in minutes
+            const baseBreak = parseInt(row[4], 10) || 0;   // Break time in minutes
+
+            // Process session times
+            for (let j = 5; j < row.length; j++) {
+              const sessionTime = row[j];
+              if (sessionTime) {
+                const start = sessionTime; // Session start time
+                const intervals = baseBreak > 0
+                  ? addMinutesToTime(start, baseTrailer + baseBreak)
+                  : addMinutesToTime(start, baseTrailer);
+                const end = addMinutesToTime(start, baseTrailer + baseDuration);
+
+                // Create the event
+                const event = new Event(
+                  start,
+                  baseTitle,
+                  baseRoom,
+                  start,
+                  intervals,
+                  end
+                );
+                events.push(event);
+              }
+            }
+          }
+        }
+
+        // Sort events by start time
+        events.sort((a, b) => {
+          const [hourA, minuteA] = a.start.split(':').map(Number);
+          const [hourB, minuteB] = b.start.split(':').map(Number);
+          return hourA * 60 + minuteA - (hourB * 60 + minuteB);
+        });
+
+        console.log('Sorted Events:', events);
+
+        // Create new CSV data with headers
+        const newCSVData = [["event_hour", "base_title", "base_room", "start", "intervals", "end"]];
+        events.forEach(event => {
+          newCSVData.push([
+            event.eventHour,
+            event.baseTitle,
+            event.baseRoom,
+            event.start,
+            event.intervals,
+            event.end
+          ]);
+        });
+
+        // Convert array to CSV string
+        const newCSVString = newCSVData.map(row => row.join(',')).join('\n');
+
+        // Create a downloadable CSV file
+        const blob = new Blob([newCSVString], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+
+        // Display the download link
+        const downloadLink = document.getElementById('downloadLink');
+        downloadLink.href = url;
+        downloadLink.download = 'processed_events.csv';
+        downloadLink.style.display = 'block';
+      };
+
+      reader.readAsArrayBuffer(file);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>File Modifier</title>
+</head>
+<body>
+  <h1>Upload File to Modify</h1>
+
+  <!-- File Input -->
+  <input type="file" id="fileInput" accept=".txt, .csv, .json"/>
+
+  <!-- Button to trigger file modification -->
+  <button onclick="modifyFile()">Modify File</button>
+
+  <!-- Button to download modified file -->
+  <a id="downloadLink" style="display:none;">Download Modified File</a>
+
+  <script>
+    let fileContent = '';
+
+    // Function to read the file
+    document.getElementById('fileInput').addEventListener('change', function(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          fileContent = e.target.result;
+          console.log('Original file content:', fileContent); // For debugging
+        };
+        reader.readAsText(file);
+      }
+    });
+
+    // Function to modify file content
+    function modifyFile() {
+      if (!fileContent) {
+        alert('Please upload a file first.');
+        return;
+      }
+
+      // MODIFICAR FICHEIRO. NESTE CASO É PARA ALTERAR OS FICHEIROS 
+
+
+
+      // Example modification: Append a line to the file content
+      const modifiedContent = fileContent + '\nModified by the script!';
+
+      // Create a blob of the modified content
+      const blob = new Blob([modifiedContent], { type: 'text/plain' });
+
+      // Create a URL for the blob
+      const url = URL.createObjectURL(blob);
+
+      // Create a link to download the file
+      const downloadLink = document.getElementById('downloadLink');
+      downloadLink.href = url;
+      downloadLink.download = 'modified_file.txt';
+      downloadLink.style.display = 'block';
+      downloadLink.innerText = 'Download Modified File';
+    }
+  </script>
+</body>
+</html>

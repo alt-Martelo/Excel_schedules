@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Excel File Modifier</title>
+  <!-- SheetJS Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+  <h1>Upload Excel File to Modify</h1>
+
+  <!-- File Input -->
+  <input type="file" id="fileInput" accept=".xlsx"/>
+
+  <!-- Button to trigger file modification -->
+  <button onclick="processExcel()">Modify File</button>
+
+  <!-- Button to download modified file -->
+  <a id="downloadLink" style="display:none;">Download Modified File</a>
+
+  <script>
+
+    class MS {
+      constructor(title, room, t_duration, t_trailer, t_break, sessions) {
+        this.title = title;
+        this.room = room;
+        this.t_duration = t_duration;
+        this.t_trailer = t_trailer;
+        this.t_break = t_break;
+        this.sessions = sessions;
+      }
+    }
+
+    function processExcel() {
+      const input = document.getElementById('fileInput');
+      const file = input.files[0];
+
+      if (!file) {
+        alert('Please upload an Excel file first.');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+
+        // Convert worksheet to JSON format to process rows
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+        // Skip the header row and process each data row
+        const instances = [];
+
+  for (let row = 2; worksheet['A' + row]; row++) {
+  const cellAddressA = 'A' + row;
+  const cellAddressB = 'B' + row;
+  const cellAddressC = 'C' + row;
+  const cellAddressD = 'D' + row;
+  const cellAddressE = 'E' + row;
+
+  const cellA = worksheet[cellAddressA];
+  const cellB = worksheet[cellAddressB];
+  const cellC = worksheet[cellAddressC];
+  const cellD = worksheet[cellAddressD];
+  const cellE = worksheet[cellAddressE];
+
+  // Log the cell values being read
+  console.log(`Row ${row} - Cell A: ${cellA ? cellA.v : 'undefined'}, Cell B: ${cellB ? cellB.v : 'undefined'}`);
+
+  if (cellA && cellA.v !== undefined && cellB && cellB.v !== undefined) {
+    const baseTitle = cellA.v;
+    const baseRoom = cellB.v;
+    const baseDuration = cellC ? cellC.v : '';
+    const baseTrailer = cellD ? cellD.v : '';
+    const baseBreak = cellE ? cellE.v : '';
+
+    for (let col = 5; col <= 11; col++) {
+      const colLetter = String.fromCharCode(65 + col);  
+      const cellAddress = colLetter + row;
+      const cell = worksheet[cellAddress];
+
+      if (cell && !isNaN(cell.v)) {
+        const instance = new MS(baseTitle, baseRoom, baseDuration, baseTrailer, baseBreak, cell.v);
+        instances.push(instance);
+        console.log(`Row ${row}, Column ${colLetter}:`, instance);
+      } else {
+        console.log(`Row ${row}, Column ${colLetter} is empty or invalid.`);
+      }
+    }
+  } else {
+    console.log(`Row ${row} has invalid or empty data in columns A or B.`);
+  }
+}
+
+console.log('All instances:', instances);
+
+
+
+        // Create new sheet data with headers
+        const newSheetData = [["titulo", "sala", "duration", "until break", "trailer", "session:"]]; 
+        instances.forEach(instance => {
+          newSheetData.push([
+            instance.title,
+            instance.room,
+            instance.t_duration,
+            instance.t_trailer,
+            instance.t_break,
+            instance.sessions
+          ]);
+        });
+
+        // Log the new sheet data to the console
+        console.log('New Sheet Data:', newSheetData);
+
+        // Create a new workbook and worksheet with the data
+        const newWorkbook = XLSX.utils.book_new();
+        const newWorksheet = XLSX.utils.aoa_to_sheet(newSheetData);
+        XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, "CalculatedData");
+
+        // Create a downloadable Excel file
+        const newExcelData = XLSX.write(newWorkbook, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([newExcelData], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = URL.createObjectURL(blob);
+
+        // Display the download link
+        const downloadLink = document.getElementById('downloadLink');
+        downloadLink.href = url;
+        downloadLink.download = 'calculated_data.xlsx';
+        downloadLink.style.display = 'block';
+      };
+
+      reader.readAsArrayBuffer(file);
+    }
+
+
+  </script>
+</body>
+</html>

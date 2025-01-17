@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Excel File Modifier</title>
+  <!-- SheetJS Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+  <h1>Upload Excel File to Modify</h1>
+
+  <!-- File Input -->
+  <input type="file" id="fileInput" accept=".xlsx"/>
+
+  <!-- Button to trigger file modification -->
+  <button onclick="modifyFile()">Modify File</button>
+
+  <!-- Button to download modified file -->
+  <a id="downloadLink" style="display:none;">Download Modified File</a>
+
+  <script>
+    let workbook = null;
+
+    // Function to read the file
+    document.getElementById('fileInput').addEventListener('change', function(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const data = new Uint8Array(e.target.result);
+          workbook = XLSX.read(data, { type: 'array' });
+          console.log('Workbook loaded:', workbook); // For debugging
+        };
+        reader.readAsArrayBuffer(file);
+      }
+    });
+
+    // Function to modify file content
+    function modifyFile() {
+      if (!workbook) {
+        alert('Please upload an Excel file first.');
+        return;
+      }
+
+      // Example modification: Add a new row in the first sheet
+
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      
+
+      // class making for the events movies
+
+      
+
+
+
+
+
+      //////////////////////////////////////////////////////
+
+
+
+      // Generate the updated Excel file
+      const newWorkbook = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([newWorkbook], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+      // Create a URL for the blob
+      const url = URL.createObjectURL(blob);
+
+      // Create a link to download the file
+      const downloadLink = document.getElementById('downloadLink');
+      downloadLink.href = url;
+      downloadLink.download = 'modified_file.xlsx';
+      downloadLink.style.display = 'block';
+      downloadLink.innerText = 'Download Modified File';
+    }
+  </script>
+</body>
+</html>

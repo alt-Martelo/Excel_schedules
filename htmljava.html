@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Excel File Modifier</title>
+  <!-- SheetJS Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+  <h1>Upload Excel File to Modify</h1>
+
+  <!-- File Input -->
+  <input type="file" id="fileInput" accept=".xlsx"/>
+
+  <!-- Button to trigger file modification -->
+  <button onclick="modifyFile()">Modify File</button>
+
+  <!-- Button to download modified file -->
+  <a id="downloadLink" style="display:none;">Download Modified File</a>
+
+  <script>
+    let workbook = null;
+
+    // Function to read the file
+    document.getElementById('fileInput').addEventListener('change', function(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const data = new Uint8Array(e.target.result);
+          workbook = XLSX.read(data, { type: 'array' });
+          console.log('Workbook loaded:', workbook); // For debugging
+        };
+        reader.readAsArrayBuffer(file);
+      }
+    });
+
+    // Function to modify file content
+    function modifyFile() {
+      if (!workbook) {
+        alert('Please upload an Excel file first.');
+        return;
+      }
+
+      // Example modification: Add a new row in the first sheet
+
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    
+    
+      /* // Access the first worksheet
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      */
+
+
+      // class making for the events movies
+      //77777777777777777777
+      const instances = []; // Array to store all instances
+
+// Loop through each row starting from row 2
+    for (let row = 2; worksheet['A' + row]; row++) {
+      const cellAddressA = 'A' + row;
+      const cellAddressB = 'B' + row;
+      const cellAddressC = 'C' + row;
+      const cellAddressD = 'D' + row;
+      const cellAddressE = 'E' + row;
+      
+      const cellA = worksheet[cellAddressA];
+      const cellB = worksheet[cellAddressB];
+      const cellC = worksheet[cellAddressB];
+      const cellD = worksheet[cellAddressB];
+      const cellE = worksheet[cellAddressB];
+
+      if (cellA && !isNaN(cellA.v) && cellB && !isNaN(cellB.v)) {
+        // Create a primary instance with title and subtitle from columns A and B
+        const baseTitle = cellA.v;
+        const baseRoom = cellB.v;
+        const baseDuration = cellC.v;
+        const baseTrailer = cellD.v;
+        const baseBreak = cellE.v;
+
+        // Loop through columns C to H (max 8 columns) to create new instances
+        for (let col = 5; col <= 12; col++) {  // 2 represents 'C', 9 represents 'H'
+          const colLetter = String.fromCharCode(65 + col);  // Convert to column letter (C, D, ..., H)
+          const cellAddress = colLetter + row;
+          const cell = worksheet[cellAddress];
+
+          if (cell && !isNaN(cell.v)) {
+            // Create a new instance with base title and subtitle, and the time value as the second argument
+            const instance = new MS(baseTitle, baseRoom, baseDuration, baseTrailer, baseBreak, cell.v);
+            //instance.time = cell.v;  // Add the time attribute
+
+            // Store each instance
+            instances.push(instance);
+          }
+        }
+      }
+    }
+    }
+
+
+    // class for movie sessions
+    
+    class MS {
+    constructor(title, room, t_duration, t_trailer, t_break, sessions) {
+        this.title = title;
+        this.room = room;
+        this.t_duration = t_duration;
+        this.t_trailer = t_trailer;
+        this.t_break = t_break;
+        this.sessions = sessions;
+    }
+
+    }
+
+    calculateEvents() {
+        this.events = []; // Clear events array before recalculating
+
+        this.sessions.forEach(startTime => {
+            // Create start, break, and end times for each session
+            let start = new Date(startTime);
+            let trailerEnd = new Date(start.getTime() + this.t_trailer * 60000); // Trailer duration in ms
+            let movieEnd = new Date(trailerEnd.getTime() + this.t_duration * 60000);
+            let breakEnd = new Date(movieEnd.getTime() + this.t_break * 60000);
+
+            // Format times and add events to the list
+            this.events.push({ time: start, type: "start", room: this.room });
+            this.events.push({ time: trailerEnd, type: "trailer end", room: this.room });
+            this.events.push({ time: movieEnd, type: "break start", room: this.room });
+            this.events.push({ time: breakEnd, type: "end", room: this.room });
+        });
+
+        // Sort events by time
+        this.events.sort((a, b) => a.time - b.time);
+    }
+
+    // Helper method to format events for display
+    formatEvents() {
+        return this.events.map(event => {
+            let hours = event.time.getHours().toString().padStart(2, '0');
+            let minutes = event.time.getMinutes().toString().padStart(2, '0');
+            return `${hours}h${minutes} ${event.type} room ${event.room}`;
+        });
+    }
+
+
+
+      // Generate the updated Excel file
+      const newWorkbook = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([newWorkbook], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+      // Create a URL for the blob
+      const url = URL.createObjectURL(blob);
+
+      // Create a link to download the file
+      const downloadLink = document.getElementById('downloadLink');
+      downloadLink.href = url;
+      downloadLink.download = 'modified_file.xlsx';
+      downloadLink.style.display = 'block';
+      downloadLink.innerText = 'Download Modified File';
+
+
+    
+  </script>
+</body>
+</html>

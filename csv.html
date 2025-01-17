@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Excel to CSV File Modifier</title>
+  <!-- SheetJS Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+  <h1>Upload Excel File to Modify</h1>
+
+  <!-- File Input -->
+  <input type="file" id="fileInput" accept=".xlsx, .xls"/>
+
+  <!-- Button to trigger file modification -->
+  <button onclick="processExcel()">Modify File</button>
+
+  <!-- Button to download modified file -->
+  <a id="downloadLink" style="display:none;">Download Modified File</a>
+
+  <script>
+    class MS {
+      constructor(title, room, t_duration, t_trailer, t_break, sessions) {
+        this.title = title;
+        this.room = room;
+        this.t_duration = t_duration;
+        this.t_trailer = t_trailer;
+        this.t_break = t_break;
+        this.sessions = sessions;
+      }
+    }
+
+    function processExcel() {
+      const input = document.getElementById('fileInput');
+      const file = input.files[0];
+
+      if (!file) {
+        alert('Please upload an Excel file first.');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+
+        // Convert Excel to CSV format
+        const csvData = XLSX.utils.sheet_to_csv(worksheet);
+        const rows = csvData.split('\n').map(row => row.split(','));
+        const header = rows[0];
+        const instances = [];
+
+        // Process rows
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (row.length > 1) { // Ensure row is not empty
+            const baseTitle = row[0];
+            const baseRoom = row[1];
+            const baseDuration = parseInt(row[2], 10) || 0; // Duration in minutes
+            const baseTrailer = row[3] || '';
+            const baseBreak = row[4] || '';
+
+            // Process session times
+            for (let j = 5; j < row.length; j++) {
+              const sessionTime = row[j];
+              if (sessionTime) {
+                const [hours, minutes] = sessionTime.split(/[:h]/).map(Number); // Support HH:MM or HHhMM formats
+                const date = new Date();
+                date.setHours(hours, minutes, 0); // Set session start time
+                date.setMinutes(date.getMinutes() + baseDuration); // Add duration
+                const endTime = date.toTimeString().slice(0, 5); // Calculate end time
+
+                const instance = new MS(
+                  baseTitle,
+                  baseRoom,
+                  baseDuration,
+                  baseTrailer,
+                  baseBreak,
+                  `${sessionTime} - ${endTime}` // Include start and end times
+                );
+                instances.push(instance);
+              }
+            }
+          }
+        }
+
+        // Sort instances by session start time
+        instances.sort((a, b) => {
+          const [startHourA, startMinA] = a.sessions.split(' - ')[0].split(':').map(Number);
+          const [startHourB, startMinB] = b.sessions.split(' - ')[0].split(':').map(Number);
+          return startHourA * 60 + startMinA - (startHourB * 60 + startMinB);
+        });
+
+        console.log('Sorted Instances:', instances);
+
+        // Create new CSV data with headers
+        const newCSVData = [["title", "room", "duration (minutes)", "trailer", "break", "session"]];
+        instances.forEach(instance => {
+          newCSVData.push([
+            instance.title,
+            instance.room,
+            instance.t_duration,
+            instance.t_trailer,
+            instance.t_break,
+            instance.sessions
+          ]);
+        });
+
+        // Convert array to CSV string
+        const newCSVString = newCSVData.map(row => row.join(',')).join('\n');
+
+        // Create a downloadable CSV file
+        const blob = new Blob([newCSVString], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+
+        // Display the download link
+        const downloadLink = document.getElementById('downloadLink');
+        downloadLink.href = url;
+        downloadLink.download = 'modified_data_sorted.csv';
+        downloadLink.style.display = 'block';
+      };
+
+      reader.readAsArrayBuffer(file);
+    }
+  </script>
+</body>
+</html>
