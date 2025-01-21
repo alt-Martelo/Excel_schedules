@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MARTELO MELHOR FUNCIONARIO</title>
+  <!-- SheetJS Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+  <h1>LUIS SOUSA</h1>
+
+  <!-- File Input -->
+  <input type="file" id="fileInput" accept=".xlsx, .xls"/>
+
+  <!-- Button to trigger file modification -->
+  <button onclick="processExcel()">CLICAR AQUI DEPOIS DE UPLOAD</button>
+
+  <!-- Button to download processed file -->
+  <a id="downloadLink" style="display:none;">HORÁRIO FEITO</a>
+
+  <script>
+    class Event {
+      constructor(room, start, intervals, end) {
+        this.room = room;
+        this.start = start;
+        this.intervals = intervals;
+        this.end = end;
+      }
+    }
+
+    function parseTimeToMinutes(timeStr, isDuration = false) {
+      const timeParts = timeStr.split(':').map(Number);
+      
+      // Handle MM:SS (for trailer or break) and HH:MM:SS (for duration or break)
+      if (timeParts.length === 2) {
+        // MM:SS format (trailer)
+        return timeParts[0] + timeParts[1] / 60;  // Convert to minutes
+      } else if (timeParts.length === 3 && isDuration) {
+        // HH:MM:SS format (duration)
+        return timeParts[0] * 60 + timeParts[1] + timeParts[2] / 60;  // Convert to minutes
+      }
+      return 0;  // Default case
+    }
+
+    function formatTime(minutes) {
+      const hours = Math.floor(minutes / 60);
+      const minutesPart = Math.floor(minutes % 60);
+      const secondsPart = Math.floor((minutes % 1) * 60);
+      return `${String(hours).padStart(2, '0')}:${String(minutesPart).padStart(2, '0')}:${String(secondsPart).padStart(2, '0')}`;
+    }
+
+    function addMinutesToTime(time, minutesToAdd) {
+      const [hours, minutes] = time.split(':').map(Number);
+      const date = new Date();
+      date.setHours(hours, minutes, 0);
+      date.setMinutes(date.getMinutes() + minutesToAdd);
+      return date.toTimeString().slice(0, 5); // Format back to HH:MM
+    }
+
+    function processExcel() {
+      const input = document.getElementById('fileInput');
+      const file = input.files[0];
+
+      if (!file) {
+        alert('EXCEL AQUI');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+
+        // Convert Excel to CSV format
+        const csvData = XLSX.utils.sheet_to_csv(worksheet);
+        const rows = csvData.split('\n').map(row => row.split(','));
+        const header = rows[0];
+        const events = [];
+        const uniqueTimes = new Set(); // Store unique times for the first column
+        const footerMap = new Map(); // To track unique base_titles and their base_rooms
+
+        // Process rows
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (row.length > 1) { // Ensure row is not empty
+            const baseTitle = row[0];
+            const baseRoom = row[1];
+            const baseDuration = row[2]; // Duration in HH:MM:SS
+            const baseTrailer = row[3]; // Trailer in MM:SS
+            const baseBreak = row[4];   // Break in HH:MM:SS
+
+            // Add to footer map
+            if (!footerMap.has(baseTitle)) {
+              footerMap.set(baseTitle, baseRoom);
+            }
+
+            // Parse duration, trailer, and break
+            const durationInMinutes = parseTimeToMinutes(baseDuration, true);
+            const trailerInMinutes = parseTimeToMinutes(baseTrailer);
+            const breakInMinutes = parseTimeToMinutes(baseBreak, true);
+
+            // Process session times
+            for (let j = 5; j < row.length; j++) {
+              const sessionTime = row[j];
+              if (sessionTime) {
+                const start = sessionTime; // Session start time
+                const intervals = breakInMinutes > 0
+                  ? addMinutesToTime(start, trailerInMinutes + breakInMinutes)
+                  : null; // Only calculate if baseBreak > 0
+                let end = addMinutesToTime(start, trailerInMinutes + durationInMinutes);
+
+                // If there's a break, add 7 minutes to the end time
+                if (breakInMinutes > 0) {
+                  end = addMinutesToTime(end, 7); // Add 7 minutes for the break
+                }
+
+                // Add times to unique set
+                uniqueTimes.add(start);
+                if (intervals) uniqueTimes.add(intervals);
+                uniqueTimes.add(end);
+
+                // Create the event
+                events.push(new Event(baseRoom, start, intervals, end));
+              }
+            }
+          }
+        }
+
+        // Sort unique times to start at 10:00
+        const sortedTimes = Array.from(uniqueTimes).sort((a, b) => {
+          const toMinutes = time => {
+            const [hours, minutes] = time.split(':').map(Number);
+            return hours * 60 + minutes;
+          };
+
+          const base = toMinutes("10:00");
+          const timeA = toMinutes(a);
+          const timeB = toMinutes(b);
+
+          // Normalize times relative to 10:00
+          const normalizedA = (timeA >= base ? timeA : timeA + 1440);
+          const normalizedB = (timeB >= base ? timeB : timeB + 1440);
+
+          return normalizedA - normalizedB;
+        });
+
+        // Create new CSV data with headers
+        const newCSVData = [["Horas", "Entrada", "Intervalo", "Saida"]];
+
+        // Process sorted times into rows
+        sortedTimes.forEach(hour => {
+          const row = [hour, " ", " ", " "]; // Default empty row
+          events.forEach(event => {
+            if (event.start === hour) row[1] = event.room; // Room in start
+            if (event.intervals === hour) row[2] = event.room; // Room in interval
+            if (event.end === hour) row[3] = event.room; // Room in end
+          });
+          newCSVData.push(row);
+        });
+
+        // Add footer rows for unique base_titles and base_rooms
+        newCSVData.push([]);
+        newCSVData.push(["Salas:"]);
+        footerMap.forEach((room, title) => {
+          newCSVData.push([title, room]);
+        });
+
+        // Convert array to CSV string
+        const newCSVString = newCSVData.map(row => row.join(';')).join('\n');
+
+        // Create a downloadable CSV file
+        const blob = new Blob([newCSVString], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+
+        // Display the download link
+        const downloadLink = document.getElementById('downloadLink');
+        downloadLink.href = url;
+        downloadLink.download = 'processed_events_sorted.csv';
+        downloadLink.style.display = 'block';
+      };
+
+      reader.readAsArrayBuffer(file);
+    }
+  </script>
+</body>
+</html>

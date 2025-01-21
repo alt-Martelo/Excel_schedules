@@ -29,20 +29,33 @@
       }
     }
 
+    function parseTimeToMinutes(timeStr, isDuration = false) {
+      const timeParts = timeStr.split(':').map(Number);
+      
+      // Handle MM:SS (for trailer or break) and HH:MM:SS (for duration or break)
+      if (timeParts.length === 2) {
+        // MM:SS format (trailer)
+        return timeParts[0] + timeParts[1] / 60;  // Convert to minutes
+      } else if (timeParts.length === 3 && isDuration) {
+        // HH:MM:SS format (duration)
+        return timeParts[0] * 60 + timeParts[1] + timeParts[2] / 60;  // Convert to minutes
+      }
+      return 0;  // Default case
+    }
+
+    function formatTime(minutes) {
+      const hours = Math.floor(minutes / 60);
+      const minutesPart = Math.floor(minutes % 60);
+      const secondsPart = Math.floor((minutes % 1) * 60);
+      return `${String(hours).padStart(2, '0')}:${String(minutesPart).padStart(2, '0')}:${String(secondsPart).padStart(2, '0')}`;
+    }
+
     function addMinutesToTime(time, minutesToAdd) {
       const [hours, minutes] = time.split(':').map(Number);
       const date = new Date();
       date.setHours(hours, minutes, 0);
       date.setMinutes(date.getMinutes() + minutesToAdd);
       return date.toTimeString().slice(0, 5); // Format back to HH:MM
-    }
-
-    // Function to format the date as DD/MM/YYYY
-    function formatDate(date) {
-      const day = String(date.getDate()).padStart(2, '0');
-      const month = String(date.getMonth() + 1).padStart(2, '0'); // Month is 0-based
-      const year = date.getFullYear();
-      return `${day}-${month}-${year}`;
     }
 
     function processExcel() {
@@ -75,24 +88,29 @@
           if (row.length > 1) { // Ensure row is not empty
             const baseTitle = row[0];
             const baseRoom = row[1];
-            const baseDuration = parseInt(row[2], 10) || 0; // Duration in minutes
-            const baseTrailer = parseInt(row[3], 10) || 0; // Trailer time in minutes
-            const baseBreak = parseInt(row[4], 10) || 0;   // Break time in minutes
+            const baseDuration = row[2]; // Duration in HH:MM:SS
+            const baseTrailer = row[3]; // Trailer in MM:SS
+            const baseBreak = row[4];   // Break in HH:MM:SS
 
             // Add to footer map
             if (!footerMap.has(baseTitle)) {
               footerMap.set(baseTitle, baseRoom);
             }
 
+            // Parse duration, trailer, and break
+            const durationInMinutes = parseTimeToMinutes(baseDuration, true);
+            const trailerInMinutes = parseTimeToMinutes(baseTrailer);
+            const breakInMinutes = parseTimeToMinutes(baseBreak, true);
+
             // Process session times
             for (let j = 5; j < row.length; j++) {
               const sessionTime = row[j];
               if (sessionTime) {
                 const start = sessionTime; // Session start time
-                const intervals = baseBreak > 0
-                  ? addMinutesToTime(start, baseTrailer + baseBreak)
+                const intervals = breakInMinutes > 0
+                  ? addMinutesToTime(start, trailerInMinutes + breakInMinutes)
                   : null; // Only calculate if baseBreak > 0
-                const end = addMinutesToTime(start, baseTrailer + baseDuration);
+                const end = addMinutesToTime(start, trailerInMinutes + durationInMinutes);
 
                 // Add times to unique set
                 uniqueTimes.add(start);
@@ -138,12 +156,49 @@
           newCSVData.push(row);
         });
 
-        // Add footer rows for unique base_titles and base_rooms
-        newCSVData.push([]);
-        newCSVData.push(["Salas:"]);
-        footerMap.forEach((room, title) => {
-          newCSVData.push([title, room]);
-        });
+        // Helper function to parse MM:SS time format to minutes
+
+        // Process rows and create the footerMap
+footerMap.clear(); // Clear previous entries if any
+for (let i = 1; i < rows.length; i++) {
+  const row = rows[i];
+  if (row.length > 1) { // Ensure row is not empty
+    const baseTitle = row[0];
+    const baseRoom = row[1];
+    const baseTrailer = row[3]; // Assuming the trailer is in the 4th column
+
+    // Ensure valid baseTrailer
+    if (baseTitle && baseRoom && baseTrailer) {
+      footerMap.set(baseTitle, { room: baseRoom, baseTrailer });
+    }
+  }
+}
+
+        
+          function parseTimeToMinutes(time) {
+            // If time is not empty and contains a colon, it's in MM:SS format
+            if (time && time.includes(':')) {
+              const [minutes, seconds] = time.split(':').map(Number);
+              return Math.round(minutes + seconds / 60); // Convert to minutes and round
+            }
+            return 0; // Return 0 if time is empty or not in valid MM:SS format
+          }
+
+          // Add footer rows for unique base_titles and base_rooms
+          // Add footer rows for unique base_titles and base_rooms
+newCSVData.push([]);
+newCSVData.push(["Salas:"]);
+
+footerMap.forEach((value, title) => {
+  // Check if baseTrailer is valid and parse it into minutes
+  const trailerMinutes = parseTimeToMinutes(value.baseTrailer);
+
+  // Only add rows if valid trailerMinutes
+  if (trailerMinutes !== 0 || value.baseTrailer) {
+    newCSVData.push([title, value.room, `${trailerMinutes} minutos`]);
+  }
+});
+
 
         // Convert array to CSV string
         const newCSVString = newCSVData.map(row => row.join(';')).join('\n');
@@ -152,14 +207,10 @@
         const blob = new Blob([newCSVString], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
 
-        // Get current date and format it
-        const currentDate = new Date();
-        const formattedDate = formatDate(currentDate);
-
-        // Display the download link with formatted date in filename
+        // Display the download link
         const downloadLink = document.getElementById('downloadLink');
         downloadLink.href = url;
-        downloadLink.download = `horario-${formattedDate}.csv`;
+        downloadLink.download = 'processed_events_sorted.csv';
         downloadLink.style.display = 'block';
       };
 
